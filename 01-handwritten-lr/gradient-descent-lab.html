@@ -1,0 +1,924 @@
+<title>梯度下降实验台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+
+<style>
+  :root {
+    --ground:  #EDF1F6;
+    --surface: #FFFFFF;
+    --sunken:  #E3E9F0;
+    --ink:     #0F1620;
+    --muted:   #5C6B7D;
+    --faint:   #97A5B5;
+    --rule:    #D2DBE5;
+    --model:   #1D5FD0;
+    --data:    #8494A6;
+    --error:   #D2295E;
+    --probe:   #9A6300;
+    --ok:      #16785A;
+    --on-model: #FFFFFF;
+    --shadow:  0 1px 2px rgba(15, 22, 32, .06), 0 8px 24px -12px rgba(15, 22, 32, .18);
+
+    --f-sans: 'IBM Plex Sans', 'Noto Sans SC', system-ui, -apple-system, sans-serif;
+    --f-mono: 'IBM Plex Mono', 'SF Mono', ui-monospace, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:  #0D1219;
+      --surface: #151C26;
+      --sunken:  #1D2733;
+      --ink:     #E5EBF3;
+      --muted:   #8A9AAC;
+      --faint:   #5F7080;
+      --rule:    #2A3744;
+      --model:   #5C9CF5;
+      --data:    #6C7C8E;
+      --error:   #F0527F;
+      --probe:   #D9A03C;
+      --ok:      #4FBE8E;
+      --on-model: #08111C;
+      --shadow:  0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -12px rgba(0, 0, 0, .6);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:  #0D1219;
+    --surface: #151C26;
+    --sunken:  #1D2733;
+    --ink:     #E5EBF3;
+    --muted:   #8A9AAC;
+    --faint:   #5F7080;
+    --rule:    #2A3744;
+    --model:   #5C9CF5;
+    --data:    #6C7C8E;
+    --error:   #F0527F;
+    --ok:      #4FBE8E;
+    --on-model: #08111C;
+    --shadow:  0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -12px rgba(0, 0, 0, .6);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--f-sans);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1140px;
+    margin: 0 auto;
+    padding-inline: 20px;
+    padding-block: 34px 64px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+
+  /* ---------- 页头 ---------- */
+  .lede { display: flex; flex-direction: column; gap: 8px; max-width: 62ch; }
+  .eyebrow {
+    font-family: var(--f-mono);
+    font-size: 11.5px;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  h1 {
+    font-size: clamp(26px, 4vw, 36px);
+    font-weight: 700;
+    letter-spacing: -.02em;
+    line-height: 1.2;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .lede p { margin: 0; color: var(--muted); }
+  .lede strong { color: var(--ink); font-weight: 600; }
+
+  /* ---------- 实验台布局 ---------- */
+  .bench {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    gap: 18px;
+    align-items: start;
+  }
+  @media (max-width: 880px) {
+    .bench { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+  }
+  .panel-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 13px 16px 11px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .panel-head h2 {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .panel-head .hint {
+    font-family: var(--f-mono);
+    font-size: 11.5px;
+    color: var(--faint);
+    white-space: nowrap;
+  }
+  .panel-body { padding: 14px 16px 16px; }
+
+  /* ---------- SVG 绘图 ---------- */
+  svg { display: block; width: 100%; height: auto; }
+  .grid-line { stroke: var(--rule); stroke-width: 1; }
+  /* SVG 里的字号是 viewBox 单位，会跟着图一起缩放。
+     窄屏要把字号调大，否则缩到手机上只有 6px，根本看不清。 */
+  .axis-text { fill: var(--faint); font-family: var(--f-mono); font-size: 12px; }
+  @media (max-width: 880px) {
+    .axis-text { font-size: 18px; }
+  }
+  .stem { stroke: var(--error); stroke-width: 1.6; stroke-linecap: round; opacity: .62; }
+  .dot { fill: var(--data); }
+  .fit { stroke: var(--model); stroke-width: 2.75; stroke-linecap: round; }
+  /* 探针：把线「挪一点点」之后的样子，画在真线下面 */
+  .ghost-fit { stroke: var(--probe); stroke-width: 2.25; stroke-dasharray: 7 5; stroke-linecap: round; }
+  .ghost-stem { stroke: var(--error); stroke-width: 1.4; stroke-dasharray: 3 3; opacity: .38; }
+  .loss-line { fill: none; stroke: var(--error); stroke-width: 2; stroke-linejoin: round; }
+  .loss-dot { fill: var(--model); }
+  .loss-dot.bad { fill: var(--error); }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    padding: 11px 16px 0;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .legend i { width: 15px; height: 2.5px; border-radius: 2px; flex: none; }
+  .legend i.dashed { background: none; border-top: 2.5px dashed var(--probe); height: 0; }
+
+  /* ---------- 探针 ---------- */
+  .probe-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 9px 14px;
+    padding: 14px 16px 0;
+  }
+  .probe-bar .probe-label {
+    font-family: var(--f-mono);
+    font-size: 11.5px;
+    letter-spacing: .04em;
+    color: var(--faint);
+  }
+  .probe-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+  .probe-btns button { font-size: 12px; padding: 5px 11px; font-family: var(--f-mono); }
+  .probe-btns button[aria-pressed="true"] {
+    border-color: var(--probe);
+    color: var(--probe);
+  }
+  .probe-note {
+    margin: 12px 16px 0;
+    padding-left: 11px;
+    border-left: 2.5px solid var(--probe);
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--muted);
+  }
+  .probe-note[hidden] { display: none; }
+  .probe-note b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .probe-note .num { font-family: var(--f-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+
+  /* ---------- 读数 ---------- */
+  .readouts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .ro { background: var(--surface); padding: 10px 12px 11px; display: flex; flex-direction: column; gap: 2px; }
+  .ro .k {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  .ro .v {
+    font-family: var(--f-mono);
+    font-size: 19px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.02em;
+    line-height: 1.25;
+  }
+  .ro .v.sm { font-size: 15px; }
+  .ro .v.up   { color: var(--model); }
+  .ro .v.down { color: var(--error); }
+  .ro .sub { font-family: var(--f-mono); font-size: 11px; color: var(--faint); }
+
+  /* ---------- 更新算式 ---------- */
+  .trace {
+    margin-top: 14px;
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    background: var(--sunken);
+    padding: 11px 13px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .trace-label {
+    font-size: 11px;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--faint);
+    font-weight: 600;
+  }
+  .trace code {
+    font-family: var(--f-mono);
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    overflow-x: auto;
+    white-space: nowrap;
+    display: block;
+    line-height: 1.75;
+  }
+  .trace .neg { color: var(--error); }
+  .trace .pos { color: var(--model); }
+
+  /* ---------- 解说的那句话 ---------- */
+  .say {
+    margin-top: 14px;
+    padding-left: 12px;
+    border-left: 2.5px solid var(--model);
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: var(--muted);
+    min-height: 42px;
+  }
+  .say b { color: var(--ink); font-weight: 600; }
+  .say.warn { border-left-color: var(--error); }
+  .say.warn b { color: var(--error); }
+
+  /* ---------- 控制器 ---------- */
+  .controls { display: flex; flex-direction: column; gap: 14px; margin-top: 16px; }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  button {
+    font-family: var(--f-sans);
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 7px;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: background .13s, border-color .13s, transform .06s;
+  }
+  button:hover { background: var(--sunken); border-color: var(--faint); }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  button:disabled:hover { background: var(--surface); border-color: var(--rule); }
+  button.primary:disabled:hover { background: var(--model); filter: none; }
+  button:focus-visible { outline: 2px solid var(--model); outline-offset: 2px; }
+  button.primary {
+    background: var(--model);
+    border-color: var(--model);
+    color: var(--on-model);
+    min-width: 92px;
+  }
+  button.primary:hover { filter: brightness(1.08); background: var(--model); }
+
+  .lr-block { display: flex; flex-direction: column; gap: 7px; }
+  .lr-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .lr-top label { font-size: 13px; color: var(--muted); }
+  .lr-val {
+    font-family: var(--f-mono);
+    font-size: 16px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+  }
+  input[type="range"] {
+    width: 100%;
+    accent-color: var(--model);
+    height: 20px;
+    margin: 0;
+    cursor: pointer;
+  }
+  input[type="range"]:focus-visible { outline: 2px solid var(--model); outline-offset: 3px; border-radius: 4px; }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; }
+  .presets button { font-size: 12px; padding: 5px 10px; font-family: var(--f-mono); }
+  .presets button[aria-pressed="true"] { border-color: var(--model); color: var(--model); }
+
+  /* ---------- 底部：loss 曲线 + 思考题 ---------- */
+  .foot { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+  @media (max-width: 880px) { .foot { grid-template-columns: 1fr; } }
+
+  .qs { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 11px; counter-reset: q; }
+  .qs li {
+    counter-increment: q;
+    display: grid;
+    grid-template-columns: 22px 1fr;
+    gap: 10px;
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: var(--muted);
+  }
+  .qs li::before {
+    content: counter(q);
+    font-family: var(--f-mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--model);
+    border: 1px solid var(--rule);
+    border-radius: 50%;
+    width: 20px; height: 20px;
+    display: grid; place-items: center;
+    margin-top: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="lede">
+    <div class="eyebrow">手写线性回归 · 实验台</div>
+    <h1>参数是怎么被误差推着走的</h1>
+    <p>红色竖线是<strong>残差</strong>——模型在每一个点上的错。梯度就是这些错的平均意见：
+       <strong>哪里错、错多少，参数就往反方向调多少</strong>。按播放，看它们一起缩下去。</p>
+  </header>
+
+  <div class="bench">
+
+    <!-- ============ 左：拟合图 ============ -->
+    <section class="panel">
+      <div class="panel-head">
+        <h2>拟合现场</h2>
+        <span class="hint" id="stepTag">第 0 步</span>
+      </div>
+      <svg id="plot" viewBox="0 0 560 372" role="img" aria-label="数据点、模型直线与残差竖线"></svg>
+
+      <div class="probe-bar">
+        <span class="probe-label">探针 δ = 0.25 · 把线挪一点点，看每根竖线怎么变</span>
+        <div class="probe-btns" id="probeBtns">
+          <button data-probe="off" aria-pressed="true">关</button>
+          <button data-probe="lift" aria-pressed="false">抬 δ（改 b）</button>
+          <button data-probe="tilt" aria-pressed="false">转 δ（改 w）</button>
+        </div>
+      </div>
+      <p class="probe-note" id="probeNote" hidden></p>
+
+      <div class="legend">
+        <span><i style="background:var(--data)"></i>数据点</span>
+        <span><i style="background:var(--model)"></i>模型 y = w·x + b</span>
+        <span><i style="background:var(--error)"></i>残差 = 预测 − 真实</span>
+        <span><i class="dashed"></i>探测线（挪过之后的线）</span>
+      </div>
+      <div style="height:12px"></div>
+    </section>
+
+    <!-- ============ 右：仪表盘 ============ -->
+    <section class="panel">
+      <div class="panel-head">
+        <h2>仪表盘</h2>
+        <span class="hint" id="statusTag">就绪</span>
+      </div>
+      <div class="panel-body">
+
+        <div class="readouts">
+          <div class="ro">
+            <span class="k">w 斜率</span>
+            <span class="v" id="roW">0.0000</span>
+            <span class="sub">真值 2.0</span>
+          </div>
+          <div class="ro">
+            <span class="k">b 截距</span>
+            <span class="v" id="roB">0.0000</span>
+            <span class="sub">真值 1.0</span>
+          </div>
+          <div class="ro">
+            <span class="k">loss (MSE)</span>
+            <span class="v" id="roL">0.0000</span>
+            <span class="sub" id="roLsub">平均平方误差</span>
+          </div>
+          <div class="ro">
+            <span class="k">δ 试探结果</span>
+            <span class="v sm" id="roProbe">—</span>
+            <span class="sub" id="roProbeSub">用上面的探针量一下</span>
+          </div>
+          <div class="ro">
+            <span class="k">dL/dw 梯度</span>
+            <span class="v sm" id="roGw">0.0000</span>
+            <span class="sub" id="roGwsub">—</span>
+          </div>
+          <div class="ro">
+            <span class="k">dL/db 梯度</span>
+            <span class="v sm" id="roGb">0.0000</span>
+            <span class="sub" id="roGbsub">—</span>
+          </div>
+        </div>
+
+        <div class="trace">
+          <span class="trace-label">这一步到底做了什么</span>
+          <code id="traceW">w ← 0.0000</code>
+          <code id="traceB">b ← 0.0000</code>
+        </div>
+
+        <p class="say" id="say">模型现在是一条躺平的线，每个点都错得很远。红色竖线越高，误差越大。</p>
+
+        <div class="controls">
+          <div class="btn-row">
+            <button class="primary" id="btnPlay">▶ 播放</button>
+            <button id="btnStep">单步 →</button>
+            <button id="btnReset">重置</button>
+          </div>
+
+          <div class="lr-block">
+            <div class="lr-top">
+              <label for="lr">学习率 lr</label>
+              <span class="lr-val" id="lrVal">0.1000</span>
+            </div>
+            <input type="range" id="lr" min="0" max="1000" value="680" step="1">
+            <div class="presets" id="presets">
+              <button data-lr="0.001">0.001 太慢</button>
+              <button data-lr="0.02">0.02 偏慢</button>
+              <button data-lr="0.1">0.1 刚好</button>
+              <button data-lr="0.5">0.5 爆炸</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </div>
+
+  <!-- ============ 底部 ============ -->
+  <div class="foot">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>损失曲线</h2>
+        <span class="hint">纵轴为对数刻度</span>
+      </div>
+      <div class="panel-body" style="padding-top:10px;">
+        <svg id="lossPlot" viewBox="0 0 560 140" role="img" aria-label="损失随步数下降的曲线"></svg>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>跑完之后，试着回答</h2>
+      </div>
+      <div class="panel-body">
+        <ol class="qs">
+          <li>把 lr 从 0.5 拖回来，为什么参数不再乱飞？梯度其实一直是同一个。</li>
+          <li>看仪表盘里的 dL/dw：它怎么随 loss 一起变小？</li>
+          <li>训练刚开始时步子大、快到时步子小，是谁在控制这个节奏？</li>
+          <li>残差那一列有正有负，为什么它们不会互相抵消掉、让梯度变成 0？</li>
+        </ol>
+      </div>
+    </section>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---- 数据：与 step2_full.py 完全一致（seed=42）----
+  var X = [1.5479,0.8778,1.7172,1.3947,0.1884,1.9512,1.5223,1.5721,0.2562,0.9008,
+           0.7416,1.8535,1.2877,1.6455,0.8868,0.4545,1.1092,0.1276,1.6553,1.2633,
+           1.5162,0.7091,1.9414,1.7862,1.5568];
+  var Y = [4.0430,2.8354,4.4892,3.8514,1.4413,5.2237,3.9836,4.0674,1.3904,2.8939,
+           2.6525,4.6900,3.4494,4.1674,2.8712,2.0204,3.2998,1.1554,4.3453,3.5442,
+           4.0652,2.5488,4.9163,4.6743,4.1237];
+  var N = X.length;
+
+  // ---- 手写梯度：dL/dw = mean(2·残差·x)，dL/db = mean(2·残差) ----
+  function loss(w, b) {
+    var s = 0;
+    for (var i = 0; i < N; i++) { var e = w * X[i] + b - Y[i]; s += e * e; }
+    return s / N;
+  }
+  function grad(w, b) {
+    var gw = 0, gb = 0;
+    for (var i = 0; i < N; i++) {
+      var e = w * X[i] + b - Y[i];
+      gw += 2 * e * X[i];
+      gb += 2 * e;
+    }
+    return [gw / N, gb / N];
+  }
+
+  // ---- 状态 ----
+  var st = { w: 0, b: 0, lr: 0.1, step: 0, playing: false, diverged: false, hist: [loss(0, 0)] };
+
+  // ---- 探针：δ 是「挪一点点」的那一点点 ----
+  var DELTA = 0.25;
+  var probeMode = "off";           // off | lift（抬，改 b） | tilt（转，改 w）
+  var X_MIN = Math.min.apply(null, X), X_MAX = Math.max.apply(null, X);
+
+  // ---- 坐标映射 ----
+  var PW = 560, PH = 372, PAD = { t: 14, r: 22, b: 46, l: 42 };
+  var XMIN = 0, XMAX = 2, YMIN = -0.8, YMAX = 6.0;
+  var px = function (v) { return PAD.l + (v - XMIN) / (XMAX - XMIN) * (PW - PAD.l - PAD.r); };
+  var py = function (v) { return PH - PAD.b - (v - YMIN) / (YMAX - YMIN) * (PH - PAD.t - PAD.b); };
+
+  var SVGNS = "http://www.w3.org/2000/svg";
+  function el(tag, attrs, parent) {
+    var n = document.createElementNS(SVGNS, tag);
+    for (var k in attrs) { n.setAttribute(k, attrs[k]); }
+    if (parent) { parent.appendChild(n); }
+    return n;
+  }
+
+  // ================= 上半图：拟合现场 =================
+  var plot = document.getElementById("plot");
+  var gGrid = el("g", {}, plot);
+  var gGhost = el("g", {}, plot);   // 探针的幽灵线 + 幽灵残差，垫在真线下面
+  var gStem = el("g", {}, plot);
+  var gPoint = el("g", {}, plot);
+  var gFit = el("g", {}, plot);
+
+  var clipId = "plotclip";
+  var defs = el("defs", {}, plot);
+  var clip = el("clipPath", { id: clipId }, defs);
+  el("rect", { x: PAD.l - 2, y: PAD.t - 2, width: PW - PAD.l - PAD.r + 4, height: PH - PAD.t - PAD.b + 4 }, clip);
+  gGhost.setAttribute("clip-path", "url(#" + clipId + ")");
+  gStem.setAttribute("clip-path", "url(#" + clipId + ")");
+  gFit.setAttribute("clip-path", "url(#" + clipId + ")");
+
+  // 网格 + 坐标轴
+  for (var yv = 0; yv <= 6; yv += 1) {
+    el("line", { class: "grid-line", x1: px(XMIN), y1: py(yv), x2: px(XMAX), y2: py(yv) }, gGrid);
+    el("text", { class: "axis-text", x: px(XMIN) - 8, y: py(yv) + 3.5, "text-anchor": "end" }, gGrid)
+      .textContent = yv;
+  }
+  for (var xv = 0; xv <= 2.001; xv += 0.5) {
+    el("line", { class: "grid-line", x1: px(xv), y1: py(YMIN), x2: px(xv), y2: py(YMAX) }, gGrid);
+    el("text", { class: "axis-text", x: px(xv), y: PH - PAD.b + 15, "text-anchor": "middle" }, gGrid)
+      .textContent = xv.toFixed(1);
+  }
+  el("text", {
+    class: "axis-text", "text-anchor": "middle",
+    x: (PAD.l + PW - PAD.r) / 2, y: PH - 8
+  }, gGrid).textContent = "输入 x";
+
+  // 残差竖线（固定数量，只改坐标）
+  var stemNodes = [];
+  for (var i = 0; i < N; i++) {
+    stemNodes.push(el("line", { class: "stem", x1: px(X[i]), y1: py(Y[i]), x2: px(X[i]), y2: py(Y[i]) }, gStem));
+  }
+  // 探针：幽灵线 + 幽灵残差（和真残差同一批点，只是接到挪过之后的线上）
+  var ghostFit = el("line", { class: "ghost-fit" }, gGhost);
+  var ghostNodes = [];
+  for (var gi = 0; gi < N; gi++) {
+    ghostNodes.push(el("line", { class: "ghost-stem", x1: px(X[gi]), y1: py(Y[gi]), x2: px(X[gi]), y2: py(Y[gi]) }, gGhost));
+  }
+  // 模型直线
+  var fitLine = el("line", { class: "fit" }, gFit);
+  // 数据点
+  for (var j = 0; j < N; j++) {
+    el("circle", { class: "dot", cx: px(X[j]), cy: py(Y[j]), r: 3.6 }, gPoint);
+  }
+
+  // ================= 下半图：loss 曲线 =================
+  var LW = 560, LH = 140, LPAD = { t: 12, r: 16, b: 26, l: 52 };
+  var LOG_LO = -2.2, LOG_HI = 1.5;   // log10(loss) 的显示范围
+  var lossPlot = document.getElementById("lossPlot");
+  var gLGrid = el("g", {}, lossPlot);
+  var lossPath = el("path", { class: "loss-line" }, lossPlot);
+  var lossDot = el("circle", { r: 3.4, "class": "loss-dot" }, lossPlot);
+
+  // 横轴随训练步数伸展：刚开始只有几步时也铺满整宽，不然曲线挤成一小撮
+  var lx = function (i) {
+    return LPAD.l + (i / Math.max(1, st.step)) * (LW - LPAD.l - LPAD.r);
+  };
+  var ly = function (v) {
+    var t = (Math.log10(Math.max(v, 1e-6)) - LOG_LO) / (LOG_HI - LOG_LO);
+    t = Math.max(0, Math.min(1, t));
+    return LH - LPAD.b - t * (LH - LPAD.t - LPAD.b);
+  };
+
+  [0.01, 0.1, 1, 10].forEach(function (v) {
+    el("line", { class: "grid-line", x1: LPAD.l, y1: ly(v), x2: LW - LPAD.r, y2: ly(v) }, gLGrid);
+    el("text", { class: "axis-text", x: LPAD.l - 8, y: ly(v) + 3.5, "text-anchor": "end" }, gLGrid)
+      .textContent = v < 1 ? v.toFixed(2) : String(v);
+  });
+  var lossAxisLabel = el("text", { class: "axis-text", x: LW - LPAD.r, y: LH - 4, "text-anchor": "end" }, gLGrid);
+  lossAxisLabel.textContent = "训练步数";
+
+  // ================= 渲染 =================
+  function fmt(v, d) {
+    if (!isFinite(v)) { return "∞"; }
+    if (Math.abs(v) >= 1e6) { return v.toExponential(1); }
+    return v.toFixed(d === undefined ? 4 : d);
+  }
+
+  var roW = document.getElementById("roW"), roB = document.getElementById("roB");
+  var roL = document.getElementById("roL"), roGw = document.getElementById("roGw");
+  var roGwsub = document.getElementById("roGwsub"), roLsub = document.getElementById("roLsub");
+  var roGb = document.getElementById("roGb"), roGbsub = document.getElementById("roGbsub");
+  var roProbe = document.getElementById("roProbe"), roProbeSub = document.getElementById("roProbeSub");
+  var probeNote = document.getElementById("probeNote"), probeBtns = document.getElementById("probeBtns");
+  var traceW = document.getElementById("traceW"), traceB = document.getElementById("traceB");
+  var say = document.getElementById("say");
+  var stepTag = document.getElementById("stepTag"), statusTag = document.getElementById("statusTag");
+  var btnPlay = document.getElementById("btnPlay"), btnStep = document.getElementById("btnStep");
+
+  function render() {
+    var L = loss(st.w, st.b);
+    var g = grad(st.w, st.b);
+    var gw = g[0], gb = g[1];
+
+    // --- 图 ---
+    var y0 = st.w * XMIN + st.b, y1 = st.w * XMAX + st.b;
+    fitLine.setAttribute("x1", px(XMIN)); fitLine.setAttribute("y1", py(y0));
+    fitLine.setAttribute("x2", px(XMAX)); fitLine.setAttribute("y2", py(y1));
+    for (var i = 0; i < N; i++) {
+      var yOnLine = st.w * X[i] + st.b;
+      stemNodes[i].setAttribute("y1", py(Y[i]));
+      stemNodes[i].setAttribute("y2", py(yOnLine));
+    }
+
+    // --- 探针：把线挪一点点，画出来 ---
+    if (probeMode === "off") {
+      gGhost.setAttribute("display", "none");
+    } else {
+      gGhost.setAttribute("display", "inline");
+      var pw = probeMode === "lift" ? st.w : st.w + DELTA;
+      var pb = probeMode === "lift" ? st.b + DELTA : st.b;
+      ghostFit.setAttribute("x1", px(XMIN)); ghostFit.setAttribute("y1", py(pw * XMIN + pb));
+      ghostFit.setAttribute("x2", px(XMAX)); ghostFit.setAttribute("y2", py(pw * XMAX + pb));
+      for (var q = 0; q < N; q++) {
+        ghostNodes[q].setAttribute("y2", py(pw * X[q] + pb));
+      }
+    }
+
+    // --- loss 曲线 ---
+    var d = "", started = false;
+    for (var k = 0; k < st.hist.length; k++) {
+      var v = st.hist[k];
+      if (!isFinite(v)) { break; }
+      d += (started ? " L" : "M") + lx(k).toFixed(1) + " " + ly(v).toFixed(1);
+      started = true;
+    }
+    lossPath.setAttribute("d", d);
+    var lastI = 0, lastV = st.hist[0];
+    for (var m = st.hist.length - 1; m >= 0; m--) {
+      if (isFinite(st.hist[m])) { lastI = m; lastV = st.hist[m]; break; }
+    }
+    lossDot.setAttribute("cx", lx(lastI)); lossDot.setAttribute("cy", ly(lastV));
+    lossDot.setAttribute("class", st.diverged ? "loss-dot bad" : "loss-dot");
+
+    // --- 读数 ---
+    roW.textContent = fmt(st.w);
+    roB.textContent = fmt(st.b);
+    roL.textContent = fmt(L);
+    roGw.textContent = fmt(gw);
+
+    roGw.textContent = fmt(gw);
+    roGw.className = "v sm " + (gw > 0 ? "down" : gw < 0 ? "up" : "");
+    roGwsub.textContent = gw > 0 ? "正 → w 要调小" : gw < 0 ? "负 → w 要调大" : "已到谷底";
+
+    roGb.textContent = fmt(gb);
+    roGb.className = "v sm " + (gb > 0 ? "down" : gb < 0 ? "up" : "");
+    roGbsub.textContent = gb > 0 ? "正 → b 要调小" : gb < 0 ? "负 → b 要调大" : "已到谷底";
+
+    // --- 探针读数：ΔL ÷ δ，理论上就等于梯度 ---
+    if (probeMode === "off") {
+      roProbe.textContent = "—";
+      roProbe.className = "v sm";
+      roProbeSub.textContent = "用上面的探针量一下";
+      probeNote.hidden = true;
+    } else {
+      var isLift = probeMode === "lift";
+      var rate = (isLift ? loss(st.w, st.b + DELTA) - L : loss(st.w + DELTA, st.b) - L) / DELTA;
+      var gradHere = isLift ? gb : gw;
+      roProbe.textContent = fmt(rate, 2);
+      roProbe.className = "v sm " + (rate > 0 ? "down" : rate < 0 ? "up" : "");
+      roProbeSub.textContent = "ΔL ÷ δ，" +
+        (isLift ? "对一下 dL/db" : "对一下 dL/dw") + " = " + fmt(gradHere, 2);
+
+      var side = isLift
+        ? "每根竖线都变了 <b>" + DELTA.toFixed(2) + "</b> —— 从最左边 x=" + X_MIN.toFixed(2) +
+          " 到最右边 x=" + X_MAX.toFixed(2) + "，<b>一模一样</b>。抬这个动作，25 个点的意见没有分歧。"
+        : "x=" + X_MIN.toFixed(2) + " 那根只变了 <b>" + (DELTA * X_MIN).toFixed(2) +
+          "</b>，x=" + X_MAX.toFixed(2) + " 那根变了 <b>" + (DELTA * X_MAX).toFixed(2) +
+          "</b> —— 按 x 大小成比例。转这个动作，<b>右边的点说话更有分量</b>。";
+
+      var head = isLift
+        ? "把线整体<b>抬高 " + DELTA.toFixed(2) + "</b>（b 加 δ）。"
+        : "把线<b>转 " + DELTA.toFixed(2) + "</b>（w 加 δ，左端基本不动）。";
+      var tail = "量出来的 ΔL ÷ δ = <span class='num'>" + fmt(rate, 2) +
+        "</span>，而梯度 = <span class='num'>" + fmt(gradHere, 2) + "</span> —— ";
+
+      var gap = Math.abs(rate - gradHere);
+      var tol = 0.15 * Math.abs(gradHere) + 0.05;
+      if (gap <= tol) {
+        tail += "<b>两个数几乎一样</b>。梯度就是这么量出来的：挪一点点，看 loss 变多少，再除以那一点点。";
+      } else if (Math.abs(gradHere) < 0.05) {
+        tail += "<b>对不上了。</b>因为已经到谷底，梯度 ≈ 0，而你这一探针跨了 δ = " + DELTA.toFixed(2) +
+          " 那么远 —— 量到的这个数里几乎全是<b>地形弯曲</b>的贡献，不是斜率。" +
+          "这正是讲义第 7 章那句话：<b>步子越大，切线近似越不准</b>。把 δ 想小一点，它就回到 0 附近了。";
+      } else {
+        tail += "<b>开始对不上了。</b>δ = " + DELTA.toFixed(2) +
+          " 相对当前的地形太大，切线近似失效 —— 差的那部分来自那个被忽略的 δ² 项（讲义第 7 章）。";
+      }
+
+      probeNote.innerHTML = head + side + " " + tail;
+      probeNote.hidden = false;
+    }
+
+    roLsub.textContent = st.diverged ? "已经炸了" : (L < 0.02 ? "已收敛" : "平均平方误差");
+
+    // --- 算式 ---
+    if (st.diverged) {
+      traceW.textContent = "w ← " + fmt(st.w, 2) + "   ← 已经飞出去了";
+      traceB.textContent = "b ← " + fmt(st.b, 2);
+    } else {
+      var nw = st.w - st.lr * gw, nb = st.b - st.lr * gb;
+      traceW.innerHTML = "w ← " + fmt(st.w) + " − " + st.lr.toFixed(4) + " × " +
+        '<span class="' + (gw < 0 ? "neg" : "pos") + '">(' + (gw >= 0 ? "+" : "") + fmt(gw) + ")</span>" +
+        " = <b>" + fmt(nw) + "</b>";
+      traceB.innerHTML = "b ← " + fmt(st.b) + " − " + st.lr.toFixed(4) + " × " +
+        '<span class="' + (gb < 0 ? "neg" : "pos") + '">(' + (gb >= 0 ? "+" : "") + fmt(gb) + ")</span>" +
+        " = <b>" + fmt(nb) + "</b>";
+    }
+
+    // --- 状态 ---
+    stepTag.textContent = "第 " + st.step + " 步";
+    statusTag.textContent = st.diverged ? "已发散" : st.playing ? "训练中" : (L < 0.02 ? "已收敛" : "就绪");
+    lossAxisLabel.textContent = "训练步数 0 → " + st.step;
+
+    // 发散了就别让按钮看起来还能用
+    btnPlay.disabled = st.diverged;
+    btnStep.disabled = st.diverged;
+
+    say.className = "say" + (st.diverged ? " warn" : "");
+    if (st.diverged) {
+      say.innerHTML = "<b>loss 炸了。</b>梯度一直指对了方向，但 lr 太大，每一步都跨过了谷底，" +
+        "越跨越远。把 lr 拖小，或者点重置重来。";
+    } else if (st.step === 0) {
+      say.innerHTML = "模型现在是一条躺平的线，每个点都错得很远。<b>红色竖线越高，误差越大。</b>";
+    } else if (gw === 0 && gb === 0) {
+      say.innerHTML = "<b>梯度归零了。</b>误差已经小到推不动参数——这就是收敛。";
+    } else if (Math.abs(gw) > 1.5) {
+      say.innerHTML = "误差还很大，所以 <b>dL/dw = " + fmt(gw, 3) + "</b> 也很大，" +
+        "这一步迈得就大。步子的大小不是我们定的，是误差给的。";
+    } else if (Math.abs(gw) > 0.12) {
+      say.innerHTML = "误差在缩小，梯度也跟着变小，<b>步子自动慢下来了</b>。";
+    } else {
+      say.innerHTML = "快到了。梯度只剩 <b>" + fmt(gw, 4) + "</b>，" +
+        "参数每次只挪一丁点——收敛的标志就是梯度趋于 0。";
+    }
+  }
+
+  // ================= 训练 =================
+  var playTimer = null;
+
+  function doStep() {
+    if (st.diverged) { return; }
+    var g = grad(st.w, st.b);
+    st.w = st.w - st.lr * g[0];
+    st.b = st.b - st.lr * g[1];
+    st.step++;
+    var L = loss(st.w, st.b);
+    st.hist.push(isFinite(L) && L < 1e12 ? L : Infinity);
+    if (!isFinite(L) || L > 1e6) {
+      st.diverged = true;
+      stopPlay();
+    }
+    render();
+  }
+
+  function startPlay() {
+    if (st.playing || st.diverged) { return; }
+    st.playing = true;
+    btnPlay.textContent = "⏸ 暂停";
+    playTimer = setInterval(doStep, 55);
+    render();
+  }
+  function stopPlay() {
+    st.playing = false;
+    clearInterval(playTimer);
+    playTimer = null;
+    btnPlay.textContent = "▶ 播放";
+    render();
+  }
+  function reset() {
+    stopPlay();
+    st.w = 0; st.b = 0; st.step = 0; st.diverged = false;
+    st.hist = [loss(0, 0)];
+    render();
+  }
+
+  btnPlay.addEventListener("click", function () {
+    st.playing ? stopPlay() : startPlay();
+  });
+  btnStep.addEventListener("click", function () {
+    stopPlay();
+    doStep();
+  });
+  document.getElementById("btnReset").addEventListener("click", reset);
+
+  // ================= 探针 =================
+  probeBtns.addEventListener("click", function (e) {
+    var btn = e.target.closest("button[data-probe]");
+    if (!btn) { return; }
+    probeMode = btn.dataset.probe;
+    Array.prototype.forEach.call(probeBtns.children, function (b) {
+      b.setAttribute("aria-pressed", b === btn ? "true" : "false");
+    });
+    render();
+  });
+
+  // ================= 学习率 =================
+  var lrInput = document.getElementById("lr");
+  var lrVal = document.getElementById("lrVal");
+  var presets = document.getElementById("presets");
+
+  var LR_MIN = Math.log10(0.001), LR_MAX = Math.log10(0.6);
+  function sliderToLr(v) { return Math.pow(10, LR_MIN + (v / 1000) * (LR_MAX - LR_MIN)); }
+  function lrToSlider(lr) {
+    return Math.round((Math.log10(lr) - LR_MIN) / (LR_MAX - LR_MIN) * 1000);
+  }
+
+  function applyLr(lr, keep) {
+    st.lr = lr;
+    lrVal.textContent = lr.toFixed(4);
+    if (keep) { return; }
+    // 换学习率等于换一次实验，回到起点
+    st.w = 0; st.b = 0; st.step = 0; st.diverged = false;
+    st.hist = [loss(0, 0)];
+    render();
+  }
+
+  lrInput.addEventListener("input", function () {
+    stopPlay();
+    applyLr(sliderToLr(Number(lrInput.value)), false);
+    syncPresets();
+  });
+
+  function syncPresets() {
+    Array.prototype.forEach.call(presets.children, function (btn) {
+      var match = Math.abs(Number(btn.dataset.lr) - st.lr) < st.lr * 0.02;
+      btn.setAttribute("aria-pressed", match ? "true" : "false");
+    });
+  }
+
+  presets.addEventListener("click", function (e) {
+    var btn = e.target.closest("button[data-lr]");
+    if (!btn) { return; }
+    stopPlay();
+    var lr = Number(btn.dataset.lr);
+    lrInput.value = lrToSlider(lr);
+    applyLr(lr, false);
+    syncPresets();
+  });
+
+  // 键盘：空格播放/暂停，右键单步
+  document.addEventListener("keydown", function (e) {
+    if (e.target.tagName === "INPUT") { return; }
+    if (e.code === "Space") { e.preventDefault(); st.playing ? stopPlay() : startPlay(); }
+    if (e.code === "ArrowRight") { e.preventDefault(); stopPlay(); doStep(); }
+  });
+
+  // ---- 启动 ----
+  lrInput.value = lrToSlider(0.1);
+  applyLr(0.1, true);
+  syncPresets();
+  render();
+})();
+</script>
