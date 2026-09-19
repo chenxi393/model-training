@@ -1,44 +1,70 @@
 # -*- coding: utf-8 -*-
 """
-PyTorch 线性回归 · 最小版
+用 PyTorch 重写最小线性回归。
 
-配套讲义：README.md 第 1 ~ 4 章
+学习主线：Tensor -> nn.Module -> loss.backward() -> optimizer.step()
 
-和第 1 单元的 linear_regression.py 是同一件事：一个点，一个参数。
-区别只有一处 —— 那里梯度是我们自己手推的公式，这里交给 loss.backward()。
-
-核心流程只有中间那 5 行，上面全是脚手架。
-
-跑：python3 pytorch_regression.py
+运行：
+    uv run python 02-pytorch-lr/pytorch_regression.py
 """
+
 import torch
-
-# ---- 数据：一个点。真相是 y = 3x，但我们假装不知道 -----------------
-x = torch.tensor(2.0)
-y = torch.tensor(6.0)
-
-# ---- 参数：这次要多写一个 requires_grad=True -----------------------
-# 它的意思是："这个数是我要调的，请把它怎么被算出来的记下来。"
-w = torch.tensor(0.0, requires_grad=True)
-
-# ---- 你自己定的两个数 --------------------------------------------
-LR = 0.05      # 学习率
-STEPS = 12     # 挪多少次
+import torch.nn as nn
 
 
-# ==================================================================
-#                        核心流程
-# ==================================================================
-for step in range(STEPS):
-    y_pred = w * x                 # 1. 前向：用当前的 w 算出预测值
-    loss = (y_pred - y) ** 2       # 2. 算 loss：这次错了多重
-    loss.backward()                # 3. 算梯度（第 1 单元里我们自己推的那一步）
-    with torch.no_grad():          # 4. 更新参数。这里不要让 PyTorch 记账
-        w -= LR * w.grad
-    w.grad.zero_()                 # 5. 把梯度清掉（第 4 章讲为什么必须清）
-# ==================================================================
+# 一个训练样本，输入和目标都写成“1 行 1 列”。
+x = torch.tensor([[2.0]])
+y = torch.tensor([[6.0]])
 
 
-print(f"学到的 w = {w.item():.4f}")
-print(f"真实是 w = 3")
-print(f"最终 loss = {((w * x - y) ** 2).item():.6f}")
+class Line(nn.Module):
+    """只有一个参数 w 的模型：y_pred = w * x。"""
+
+    def __init__(self):
+        super().__init__()
+        self.linear = nn.Linear(1, 1, bias=False)
+
+    def forward(self, x):
+        return self.linear(x)
+
+
+model = Line()
+with torch.no_grad():
+    model.linear.weight.zero_()
+
+criterion = nn.MSELoss()
+optimizer = torch.optim.SGD(model.parameters(), lr=0.05)
+
+steps = 12
+first_step = None
+
+for step in range(steps):
+    optimizer.zero_grad()          # 清掉上一轮梯度
+    y_pred = model(x)              # nn.Module 算预测
+    loss = criterion(y_pred, y)    # 算预测与真实值的差距
+    loss.backward()                # 把梯度写入 model 的参数 .grad
+
+    if step == 0:
+        first_step = {
+            "y_pred": y_pred.item(),
+            "loss": loss.item(),
+            "grad": model.linear.weight.grad.item(),
+        }
+
+    optimizer.step()               # 对所有参数执行 parameter -= lr * grad
+
+    if step == 0:
+        first_step["weight_after"] = model.linear.weight.item()
+
+
+with torch.no_grad():
+    final_loss = criterion(model(x), y).item()
+
+print("第一轮发生了什么：")
+print(f"  y_pred       = {first_step['y_pred']:.1f}")
+print(f"  loss         = {first_step['loss']:.1f}")
+print(f"  weight.grad  = {first_step['grad']:.1f}")
+print(f"  更新后 weight = {first_step['weight_after']:.1f}\n")
+print(f"学到的 weight = {model.linear.weight.item():.4f}")
+print("真实是 weight = 3")
+print(f"最终 loss = {final_loss:.6f}")

@@ -2,7 +2,7 @@
 """
 PyTorch 线性回归 · 完整版
 
-配套讲义：README.md 第 5 ~ 8 章
+定位：README.md 学完以后的扩展示例。
 
 和第 1 单元的 linear_regression_full.py 干的是同一件事：25 个点，两个参数。
 区别是这次不用自己写 predict / loss / gradient 了 ——
