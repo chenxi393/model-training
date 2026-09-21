@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>MNIST 数字预测</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: light-dark(#eef2f5, #10151b);
+      --surface: light-dark(#ffffff, #192129);
+      --surface-2: light-dark(#f5f7f9, #222c36);
+      --ink: light-dark(#17202a, #edf2f7);
+      --muted: light-dark(#657384, #a4b1bf);
+      --line: light-dark(#d4dce5, #354351);
+      --accent: light-dark(#1769c2, #69aaf3);
+      --accent-soft: light-dark(#e7f1fc, #173654);
+      --success: light-dark(#087856, #58caa3);
+      --danger: light-dark(#b4233b, #fa8395);
+      --shadow: 0 10px 30px light-dark(rgba(30, 45, 60, .09), rgba(0, 0, 0, .28));
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, "Noto Sans SC", sans-serif;
+      --mono: "SFMono-Regular", Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.5; }
+    main { width: min(1040px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 56px; }
+    header { margin-bottom: 18px; }
+    h1 { margin: 0; font-size: 28px; letter-spacing: 0; }
+    header p { margin: 5px 0 0; color: var(--muted); }
+    .workspace { display: grid; grid-template-columns: minmax(300px, .9fr) minmax(380px, 1.1fr); gap: 16px; }
+    @media (max-width: 780px) { .workspace { grid-template-columns: 1fr; } }
+    .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 13px 15px; border-bottom: 1px solid var(--line); }
+    .panel-head h2 { margin: 0; font-size: 16px; }
+    .panel-head span { color: var(--muted); font: 12px var(--mono); }
+    .panel-body { padding: 15px; }
+    .drop-zone { min-height: 280px; display: grid; place-items: center; border: 1px dashed var(--line); border-radius: 7px; background: var(--surface-2); text-align: center; padding: 18px; transition: border-color .15s, background .15s; }
+    .drop-zone.is-dragging { border-color: var(--accent); background: var(--accent-soft); }
+    .preview { width: min(240px, 100%); aspect-ratio: 1; object-fit: contain; image-rendering: pixelated; display: none; background: #000; }
+    .drop-copy strong { display: block; }
+    .drop-copy span { display: block; margin-top: 5px; color: var(--muted); font-size: 13px; }
+    .file-label { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; margin-top: 12px; padding: 7px 12px; border-radius: 6px; background: var(--ink); color: var(--surface); font-weight: 600; cursor: pointer; }
+    #fileInput { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    .samples { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 6px; margin-top: 12px; }
+    @media (max-width: 520px) { .samples { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+    .sample { min-width: 0; padding: 4px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); color: var(--ink); cursor: pointer; }
+    .sample:hover, .sample:focus-visible { border-color: var(--accent); }
+    .sample img { display: block; width: 100%; aspect-ratio: 1; image-rendering: pixelated; background: #000; }
+    .sample span { display: block; font: 11px var(--mono); margin-top: 2px; }
+    .empty-result { min-height: 340px; display: grid; place-items: center; color: var(--muted); text-align: center; }
+    .result { display: none; }
+    .prediction { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+    .prediction strong { font: 600 56px var(--mono); color: var(--accent); }
+    .prediction span { color: var(--muted); }
+    .probabilities { display: grid; gap: 8px; }
+    .probability-row { display: grid; grid-template-columns: 20px 1fr 62px; gap: 9px; align-items: center; }
+    .digit { font: 600 13px var(--mono); text-align: center; }
+    .track { height: 13px; overflow: hidden; background: var(--surface-2); border-radius: 3px; }
+    .bar { height: 100%; width: 0; background: var(--muted); transition: width .22s ease; }
+    .probability-row.is-prediction .bar { background: var(--accent); }
+    .probability-row.is-prediction .digit, .probability-row.is-prediction .percent { color: var(--accent); font-weight: 600; }
+    .percent { font: 12px var(--mono); text-align: right; }
+    .status { min-height: 22px; margin-top: 10px; color: var(--muted); font-size: 13px; }
+    .status.error { color: var(--danger); }
+    .model-note { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>MNIST 数字预测</h1>
+      <p>选择测试图片或上传手写数字，观察模型对 0～9 的输出概率。</p>
+    </header>
+
+    <section class="workspace">
+      <div class="panel">
+        <div class="panel-head"><h2>输入图片</h2><span>自动转为 28×28</span></div>
+        <div class="panel-body">
+          <div class="drop-zone" id="dropZone">
+            <div class="drop-copy" id="dropCopy">
+              <strong>拖入一张手写数字图片</strong>
+              <span>支持 PNG、JPG，白底黑字会自动反色</span>
+              <label class="file-label" for="fileInput">选择图片</label>
+              <input id="fileInput" type="file" accept="image/*">
+            </div>
+            <img class="preview" id="preview" alt="模型实际看到的 28×28 图片">
+          </div>
+          <div class="status" id="status" aria-live="polite">也可以直接选择下面的 MNIST 测试图片。</div>
+          <div class="samples" aria-label="MNIST 测试图片">
+            <button class="sample" type="button" data-src="test_images/digit_0.png"><img src="test_images/digit_0.png" alt="数字 0 测试图片"><span>0</span></button>
+            <button class="sample" type="button" data-src="test_images/digit_1.png"><img src="test_images/digit_1.png" alt="数字 1 测试图片"><span>1</span></button>
+            <button class="sample" type="button" data-src="test_images/digit_2.png"><img src="test_images/digit_2.png" alt="数字 2 测试图片"><span>2</span></button>
+            <button class="sample" type="button" data-src="test_images/digit_3.png"><img src="test_images/digit_3.png" alt="数字 3 测试图片"><span>3</span></button>
+            <button class="sample" type="button" data-src="test_images/digit_4.png"><img src="test_images/digit_4.png" alt="数字 4 测试图片"><span>4</span></button>
+            <button class="sample" type="button" data-src="test_images/digit_5.png"><img src="test_images/digit_5.png" alt="数字 5 测试图片"><span>5</span></button>
+            <button class="sample" type="button" data-src="test_images/digit_6.png"><img src="test_images/digit_6.png" alt="数字 6 测试图片"><span>6</span></button>
+            <button class="sample" type="button" data-src="test_images/digit_7.png"><img src="test_images/digit_7.png" alt="数字 7 测试图片"><span>7</span></button>
+            <button class="sample" type="button" data-src="test_images/digit_8.png"><img src="test_images/digit_8.png" alt="数字 8 测试图片"><span>8</span></button>
+            <button class="sample" type="button" data-src="test_images/digit_9.png"><img src="test_images/digit_9.png" alt="数字 9 测试图片"><span>9</span></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>模型输出</h2><span id="accuracyLabel">等待图片</span></div>
+        <div class="panel-body">
+          <div class="empty-result" id="emptyResult">选择一张图片后，这里会显示十个数字的概率。</div>
+          <div class="result" id="result" aria-live="polite">
+            <div class="prediction"><strong id="prediction">-</strong><span>模型预测</span></div>
+            <div class="probabilities" id="probabilities"></div>
+            <div class="model-note">概率来自十个 logit 经过 softmax 后的结果。最高的一项就是最终预测。</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const dropZone = document.getElementById('dropZone');
+    const dropCopy = document.getElementById('dropCopy');
+    const fileInput = document.getElementById('fileInput');
+    const preview = document.getElementById('preview');
+    const status = document.getElementById('status');
+    const emptyResult = document.getElementById('emptyResult');
+    const result = document.getElementById('result');
+    const prediction = document.getElementById('prediction');
+    const probabilities = document.getElementById('probabilities');
+    const accuracyLabel = document.getElementById('accuracyLabel');
+
+    function fileAsDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('读取图片失败'));
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function predictDataUrl(dataUrl) {
+      status.className = 'status';
+      status.textContent = '模型正在计算...';
+      try {
+        const response = await fetch('/api/predict', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: dataUrl })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || '预测失败');
+        renderResult(data);
+      } catch (error) {
+        status.className = 'status error';
+        status.textContent = error.message;
+      }
+    }
+
+    function renderResult(data) {
+      preview.src = data.processed_image;
+      preview.style.display = 'block';
+      dropCopy.style.display = 'none';
+      emptyResult.style.display = 'none';
+      result.style.display = 'block';
+      prediction.textContent = data.prediction;
+      probabilities.innerHTML = '';
+
+      data.probabilities.forEach((value, digit) => {
+        const row = document.createElement('div');
+        row.className = 'probability-row' + (digit === data.prediction ? ' is-prediction' : '');
+        row.innerHTML = `
+          <span class="digit">${digit}</span>
+          <div class="track"><div class="bar" style="width:${(value * 100).toFixed(2)}%"></div></div>
+          <span class="percent">${(value * 100).toFixed(2)}%</span>`;
+        probabilities.appendChild(row);
+      });
+
+      accuracyLabel.textContent = data.test_accuracy == null
+        ? 'checkpoint 已加载'
+        : `test_acc ${(data.test_accuracy * 100).toFixed(1)}%`;
+      status.textContent = '已完成预处理和预测。';
+    }
+
+    fileInput.addEventListener('change', async () => {
+      if (fileInput.files[0]) await predictDataUrl(await fileAsDataUrl(fileInput.files[0]));
+    });
+
+    ['dragenter', 'dragover'].forEach((eventName) => {
+      dropZone.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        dropZone.classList.add('is-dragging');
+      });
+    });
+    ['dragleave', 'drop'].forEach((eventName) => {
+      dropZone.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        dropZone.classList.remove('is-dragging');
+      });
+    });
+    dropZone.addEventListener('drop', async (event) => {
+      const file = event.dataTransfer.files[0];
+      if (file) await predictDataUrl(await fileAsDataUrl(file));
+    });
+
+    document.querySelectorAll('.sample').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const response = await fetch(button.dataset.src);
+        const blob = await response.blob();
+        await predictDataUrl(await fileAsDataUrl(blob));
+      });
+    });
+  </script>
+</body>
+</html>

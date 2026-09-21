@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MLP 实验台</title>
+  <style>
+    :root {
+      --bg: #eef2f6;
+      --surface: #fff;
+      --surface-2: #f5f7fa;
+      --ink: #18212b;
+      --muted: #637080;
+      --faint: #8b98a7;
+      --line: #d5dde6;
+      --blue: #2867c7;
+      --blue-soft: #e8f0ff;
+      --orange: #b56a00;
+      --orange-soft: #fff2db;
+      --green: #147a5b;
+      --red: #c83b55;
+      --shadow: 0 8px 24px rgba(24, 33, 43, .08);
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, "Noto Sans SC", sans-serif;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--sans);
+      line-height: 1.6;
+    }
+    .page { max-width: 1180px; margin: 0 auto; padding: 34px 20px 64px; }
+    .eyebrow { color: var(--faint); font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+    h1 { margin: 6px 0 10px; font-size: clamp(28px, 5vw, 44px); line-height: 1.1; }
+    h2 { margin: 0; font-size: 18px; }
+    h3 { margin: 0; font-size: 15px; }
+    p { margin: 8px 0; color: var(--muted); }
+    .lede { max-width: 720px; margin-bottom: 22px; }
+    .lede p { font-size: 17px; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, .8fr); gap: 18px; align-items: start; }
+    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+    .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); overflow: hidden; }
+    .panel-head { padding: 14px 16px 12px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+    .panel-head small { color: var(--faint); font: 12px var(--mono); }
+    .panel-body { padding: 16px; }
+    .controls { display: grid; gap: 14px; }
+    .control { display: grid; grid-template-columns: 34px 1fr 58px; gap: 10px; align-items: center; }
+    .control label { font: 600 13px var(--mono); color: var(--muted); }
+    input[type="range"] { width: 100%; accent-color: var(--blue); }
+    output { font: 13px var(--mono); text-align: right; color: var(--ink); }
+    button { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 6px; padding: 7px 11px; font: 600 13px var(--sans); cursor: pointer; }
+    button:hover { border-color: var(--blue); color: var(--blue); }
+    .reset { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; }
+    .network { padding: 20px 14px 24px; background: var(--surface-2); overflow-x: auto; }
+    .network-grid { min-width: 620px; display: grid; grid-template-columns: 1fr 1.2fr 1.2fr 1fr; gap: 14px; align-items: center; }
+    .layer { display: grid; gap: 28px; justify-items: center; }
+    .layer-title { color: var(--faint); font: 600 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+    .node { width: 112px; min-height: 88px; padding: 10px 8px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); text-align: center; box-shadow: 0 3px 10px rgba(24, 33, 43, .06); }
+    .node.input { border-color: #b9c9de; }
+    .node.hidden { border-color: #e5bd7b; background: #fffaf1; }
+    .node.output { border-color: #9bcdbb; background: #f2fbf7; }
+    .node .name { display: block; color: var(--muted); font: 600 11px var(--mono); }
+    .node .value { display: block; margin-top: 4px; font: 600 20px var(--mono); }
+    .node .formula { display: block; margin-top: 4px; color: var(--faint); font-size: 11px; }
+    .arrow { text-align: center; color: var(--blue); font: 24px var(--mono); }
+    .arrow small { display: block; color: var(--faint); font: 11px var(--sans); }
+    .readouts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; margin-top: 16px; border: 1px solid var(--line); background: var(--line); border-radius: 8px; overflow: hidden; }
+    .readout { padding: 10px 12px; background: var(--surface); }
+    .readout span { display: block; color: var(--faint); font: 11px var(--mono); }
+    .readout strong { display: block; margin-top: 2px; font: 600 17px var(--mono); }
+    .calc-intro { margin-top: 16px; padding: 12px 14px; border: 1px solid #e5bd7b; border-radius: 8px; background: var(--orange-soft); }
+    .calc-intro strong { color: var(--orange); }
+    .calc-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 10px; }
+    @media (max-width: 620px) { .calc-grid { grid-template-columns: 1fr; } }
+    .calc-card { padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+    .calc-card h3 { color: var(--orange); }
+    .calc-line { margin-top: 7px; color: var(--ink); font: 12px/1.6 var(--mono); overflow-wrap: anywhere; }
+    .calc-line.muted { color: var(--muted); }
+    .relu-box { margin-top: 10px; padding: 10px 12px; border-left: 3px solid var(--blue); background: var(--blue-soft); }
+    .relu-box p { margin: 3px 0 0; font-size: 13px; }
+    .explain { display: grid; gap: 12px; }
+    .step { padding: 12px; border-left: 3px solid var(--blue); background: var(--blue-soft); }
+    .step.orange { border-left-color: var(--orange); background: var(--orange-soft); }
+    .step p { margin: 4px 0 0; font-size: 14px; }
+    code, pre { font-family: var(--mono); }
+    .formula-box { margin-top: 12px; padding: 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 7px; overflow-x: auto; }
+    .formula-box code { font-size: 12px; white-space: pre; }
+    .mapping { margin-top: 18px; display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: stretch; }
+    @media (max-width: 620px) { .mapping { grid-template-columns: 1fr; } .mapping .map-arrow { transform: rotate(90deg); } }
+    .map-card { padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+    .map-card strong { display: block; font: 600 20px var(--mono); color: var(--blue); }
+    .map-card span { color: var(--muted); font-size: 13px; }
+    .map-arrow { align-self: center; color: var(--faint); font: 22px var(--mono); }
+    .terms { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 18px; }
+    @media (max-width: 700px) { .terms { grid-template-columns: 1fr; } }
+    .term { padding: 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; }
+    .term strong { display: block; font-size: 14px; }
+    .term span { display: block; color: var(--muted); font-size: 13px; margin-top: 3px; }
+    .footer-note { margin-top: 18px; color: var(--faint); font-size: 13px; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #10161e; --surface: #18212b; --surface-2: #202b37; --ink: #e9eef4; --muted: #aab6c4; --faint: #738294; --line: #344352; --blue-soft: #1c3557; --orange-soft: #3d2d18; --output-soft: #16362b; --shadow: 0 8px 24px rgba(0,0,0,.25); }
+      .node.hidden { background: #2b2419; }
+      .node.output { background: #183129; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="lede">
+      <div class="eyebrow">04 / Small MLP Lab</div>
+      <h1>先解决一个分类问题</h1>
+      <p>我们要判断：两个条件里，是否<strong>恰好满足一个</strong>？先看这个问题为什么不能只画一条直线解决，再看隐藏单元和 ReLU 各自帮了什么忙。</p>
+    </div>
+
+    <section class="panel" style="margin-bottom:18px">
+      <div class="panel-head"><h2>我们到底要预测什么？</h2><small>一个很小的二分类问题</small></div>
+      <div class="panel-body">
+        <p>把 <code>x1</code> 和 <code>x2</code> 看成两个条件：<code>1</code> 表示满足，<code>0</code> 表示不满足。目标是判断“恰好一个条件满足”，也就是下面两种情况：</p>
+        <div class="mapping">
+          <div class="map-card"><strong>(1, 0) → 1</strong><span>只有第一个条件满足，是正类</span></div>
+          <div class="map-arrow">而</div>
+          <div class="map-card"><strong>(0, 0)、(1, 1) → 0</strong><span>一个都不满足，或两个都满足，是负类</span></div>
+        </div>
+        <div class="step orange" style="margin-top:12px"><h3>为什么需要隐藏单元？</h3><p>如果只有一个加权求和，x1、x2 对分数的影响会直接相加。这样“分别满足一个条件”时分数变大，“两个条件都满足”时分数也会更大，很难把最后一种情况判回 0。隐藏单元让模型先做中间判断，再组合答案。</p></div>
+        <div class="formula-box"><code>h1：至少一个条件满足
+h2：两个条件都满足
+有 h1、没有 h2 → 恰好一个 → 预测 1
+有 h1、也有 h2 → 两个都满足 → 预测 0</code><p>拖动输入时，可以对照下面的 h1、h2 数值观察这个过程。</p></div>
+        <div class="formula-box"><code>x：输入
+y：正确答案
+模型：根据 x 算出预测
+loss：预测和 y 的差距</code><p>这一页只是在观察“模型如何一步步计算预测”，还没有开始训练。</p></div>
+      </div>
+    </section>
+
+    <section class="layout">
+      <div class="panel">
+        <div class="panel-head"><h2>前向计算</h2><small>每次改动都会重新计算</small></div>
+        <div class="panel-body">
+          <div class="controls">
+            <div class="control"><label for="x1">x1</label><input id="x1" type="range" min="0" max="1" step="0.01" value="1"><output id="x1Value">1.00</output></div>
+            <div class="control"><label for="x2">x2</label><input id="x2" type="range" min="0" max="1" step="0.01" value="0"><output id="x2Value">0.00</output></div>
+            <button class="reset" id="reset"><span aria-hidden="true">↺</span> 恢复初始输入</button>
+          </div>
+          <div class="network" aria-live="polite">
+            <div class="network-grid">
+              <div class="layer">
+                <div class="layer-title">input</div>
+                <div class="node input"><span class="name">x1</span><strong class="value" id="x1Node">1.00</strong><span class="formula">条件 1</span></div>
+                <div class="node input"><span class="name">x2</span><strong class="value" id="x2Node">0.00</strong><span class="formula">条件 2</span></div>
+              </div>
+              <div class="arrow">→<small>加权求和</small></div>
+              <div class="layer">
+                <div class="layer-title">hidden</div>
+                <div class="node hidden"><span class="name">h1</span><strong class="value" id="h1Node">0.50</strong><span class="formula">至少一个条件</span></div>
+                <div class="node hidden"><span class="name">h2</span><strong class="value" id="h2Node">0.00</strong><span class="formula">两个条件都满足</span></div>
+              </div>
+              <div class="arrow">→<small>ReLU 开关</small></div>
+              <div class="layer">
+                <div class="layer-title">output</div>
+                <div class="node output"><span class="name">probability</span><strong class="value" id="probabilityNode">0.62</strong><span class="formula">恰好一个？</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="readouts">
+            <div class="readout"><span>h1 before ReLU</span><strong id="h1Before">0.50</strong></div>
+            <div class="readout"><span>h1 after ReLU</span><strong id="h1After">0.50</strong></div>
+            <div class="readout"><span>h2 before ReLU</span><strong id="h2Before">-0.50</strong></div>
+            <div class="readout"><span>h2 after ReLU</span><strong id="h2After">0.00</strong></div>
+            <div class="readout"><span>output logit</span><strong id="logit">0.50</strong></div>
+            <div class="readout"><span>threshold 0.5</span><strong id="prediction">1 / positive</strong></div>
+          </div>
+          <div class="calc-intro">
+            <strong>重点：每个隐藏单元都先做同一种计算</strong>
+            <div class="calc-grid">
+              <div class="calc-card">
+                <h3>h1：识别“至少一个”</h3>
+                <div class="calc-line" id="h1Multiply">1.0 × 1.0 + 1.0 × 0.0 - 0.5</div>
+                <div class="calc-line muted" id="h1RawLine">= 1.00 + 0.00 - 0.50 = 0.50</div>
+                <div class="relu-box"><code id="h1ReluLine">ReLU(0.50) = 0.50</code><p>正数保留。</p></div>
+              </div>
+              <div class="calc-card">
+                <h3>h2：识别“两个都满足”</h3>
+                <div class="calc-line" id="h2Multiply">1.0 × 1.0 + 1.0 × 0.0 - 1.5</div>
+                <div class="calc-line muted" id="h2RawLine">= 1.00 + 0.00 - 1.50 = -0.50</div>
+                <div class="relu-box"><code id="h2ReluLine">ReLU(-0.50) = 0.00</code><p>负数被变成 0。</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="panel">
+        <div class="panel-head"><h2>先看这三件事</h2><small>不要背定义</small></div>
+        <div class="panel-body explain">
+          <div class="step"><h3>1. 先把输入当成开关</h3><p><code>x1</code>、<code>x2</code> 只有 0 和 1。先数开了几个，再看 h1、h2 分别用不同门槛回答什么问题。</p></div>
+          <div class="step"><h3>2. 什么是隐藏单元？</h3><p>把它想成一个小计算器。它拿到所有输入，每个输入乘一个自己的权重，最后加上偏置：<code>w1*x1 + w2*x2 + b</code>。h1 和 h2 只是两台用途不同的计算器。</p></div>
+          <div class="step orange"><h3>3. ReLU 是什么？</h3><p>ReLU 不是另一个隐藏单元，而是一个简单的开关：<code>ReLU(z) = max(0, z)</code>。负数变 0，正数保留。h1、h2 的 before 和 after 会把这件事直接显示出来。</p></div>
+          <div class="step"><h3>4. 这些数字不是凭空来的</h3><p><code>-0.5</code> 让 h1 在“至少一个”时变正，<code>-1.5</code> 让 h2 只有在“两个都满足”时变正。它们是两个不同的门槛。</p></div>
+          <div class="step"><h3>5. 输出层做最后组合</h3><p>这里的 <code>2</code>、<code>-6</code>、<code>-0.5</code> 只是为了让这四种输入得到正确分类而手工选的一组参数，不是固定答案。真实训练时，它们会由数据和 loss 学出来。</p></div>
+          <div class="formula-box"><code>h1 = 1.0*x1 + 1.0*x2 - 0.5
+h2 = 1.0*x1 + 1.0*x2 - 1.5
+
+relu(h) = max(0, h)
+logit = 2.0*relu(h1) - 6.0*relu(h2) - 0.5</code></div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="panel" style="margin-top:18px">
+      <div class="panel-head"><h2>从玩具网络到 MNIST</h2><small>计算没有变，规模变了</small></div>
+      <div class="panel-body">
+        <p>上面只有 2 个输入、2 个隐藏单元和 1 个输出。MNIST 只是把这些数字换大了。真实训练时，模型不会手工告诉 h1 “识别至少一个”，而是从数据和 loss 中学出合适的权重。</p>
+        <div class="mapping">
+          <div class="map-card"><strong>2 → 2 → 1</strong><span>实验台：两个输入特征，两个隐藏单元，一个二分类输出</span></div>
+          <div class="map-arrow">→</div>
+          <div class="map-card"><strong>784 → 128 → 10</strong><span>MNIST：784 个像素，128 个隐藏单元，10 个数字类别</span></div>
+        </div>
+        <div class="terms">
+          <div class="term"><strong>batch</strong><span>一次拿多少张图片算梯度。代码默认是 64 张。</span></div>
+          <div class="term"><strong>epoch</strong><span>完整看完训练集一次。代码默认训练 8 遍。</span></div>
+          <div class="term"><strong>learning rate</strong><span>每次使用梯度更新参数时走多远。</span></div>
+        </div>
+        <p class="footer-note">理解完这个页面，再运行 <code>uv run python 04-small-mlp/train_mlp.py</code>，看真实 MNIST 上 train 和 validation 的曲线。</p>
+      </div>
+    </section>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const inputs = { x1: $('x1'), x2: $('x2') };
+    const fmt = (value) => Number(value).toFixed(2);
+    const sigmoid = (value) => 1 / (1 + Math.exp(-value));
+
+    function render() {
+      const x1 = Number(inputs.x1.value);
+      const x2 = Number(inputs.x2.value);
+      const h1 = 1.0 * x1 + 1.0 * x2 - 0.5;
+      const h2 = 1.0 * x1 + 1.0 * x2 - 1.5;
+      const h1After = Math.max(0, h1);
+      const h2After = Math.max(0, h2);
+      const logit = 2.0 * h1After - 6.0 * h2After - 0.5;
+      const probability = sigmoid(logit);
+      const prediction = probability >= 0.5 ? '1 / positive' : '0 / negative';
+
+      $('x1Value').value = fmt(x1); $('x2Value').value = fmt(x2);
+      $('x1Node').textContent = fmt(x1); $('x2Node').textContent = fmt(x2);
+      $('h1Node').textContent = fmt(h1After); $('h2Node').textContent = fmt(h2After);
+      $('h1Before').textContent = fmt(h1); $('h1After').textContent = fmt(h1After);
+      $('h2Before').textContent = fmt(h2); $('h2After').textContent = fmt(h2After);
+      $('logit').textContent = fmt(logit); $('probabilityNode').textContent = fmt(probability);
+      $('prediction').textContent = prediction;
+      const h1Term1 = x1;
+      const h1Term2 = x2;
+      const h2Term1 = x1;
+      const h2Term2 = x2;
+      $('h1Multiply').textContent = `1.0 × ${fmt(x1)} + 1.0 × ${fmt(x2)} - 0.5`;
+      $('h1RawLine').textContent = `= ${fmt(h1Term1)} + ${fmt(h1Term2)} - 0.50 = ${fmt(h1)}`;
+      $('h1ReluLine').textContent = `ReLU(${fmt(h1)}) = ${fmt(h1After)}`;
+      $('h2Multiply').textContent = `1.0 × ${fmt(x1)} + 1.0 × ${fmt(x2)} - 1.5`;
+      $('h2RawLine').textContent = `= ${fmt(h2Term1)} + ${fmt(h2Term2)} - 1.50 = ${fmt(h2)}`;
+      $('h2ReluLine').textContent = `ReLU(${fmt(h2)}) = ${fmt(h2After)}`;
+    }
+
+    Object.values(inputs).forEach((input) => input.addEventListener('input', render));
+    $('reset').addEventListener('click', () => { inputs.x1.value = '1'; inputs.x2.value = '0'; render(); });
+    render();
+  </script>
+</body>
+</html>
