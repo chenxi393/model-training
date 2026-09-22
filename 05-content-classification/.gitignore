@@ -1,0 +1,5 @@
+.data/
+artifacts/
+reports/
+__pycache__/
+*.pyc
