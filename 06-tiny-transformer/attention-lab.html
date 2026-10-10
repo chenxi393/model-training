@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>06 · Attention 实验台</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17212b;
+      --muted: #596877;
+      --line: #d4dce4;
+      --paper: #f3f6f8;
+      --white: #fff;
+      --blue: #1769aa;
+      --blue-pale: #e6f2fc;
+      --green: #08765b;
+      --green-pale: #e7f5ef;
+      --amber: #a65e12;
+      --amber-pale: #fff1d9;
+      --red: #b43f48;
+      --red-pale: #fcebed;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.6 system-ui, -apple-system, "Noto Sans SC", sans-serif; }
+    button { font: inherit; cursor: pointer; }
+    button:focus-visible, a:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+    main { max-width: 1180px; margin: 0 auto; padding: 30px 28px 50px; }
+    .topline { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 13px; }
+    .topline a { color: var(--blue); }
+    h1 { font-size: 30px; line-height: 1.25; margin: 10px 0 7px; }
+    h2 { font-size: 18px; margin: 0 0 8px; }
+    h3 { font-size: 15px; margin: 0; }
+    p { margin: 0; }
+    .lead { color: var(--muted); max-width: 800px; }
+    .scope { margin: 18px 0 22px; padding: 10px 13px; border-left: 3px solid var(--amber); background: var(--amber-pale); font-size: 13px; }
+    .scope strong { color: var(--amber); }
+    .toolbar { display: flex; align-items: center; gap: 24px; padding: 14px 18px; background: var(--white); border: 1px solid var(--line); border-radius: 7px 7px 0 0; }
+    .toolbar-label { font-size: 13px; font-weight: 700; color: var(--muted); }
+    .switch { display: inline-flex; gap: 3px; padding: 3px; background: var(--paper); border-radius: 5px; }
+    .switch button { border: 0; border-radius: 4px; background: transparent; padding: 6px 14px; min-width: 90px; }
+    .switch button[aria-pressed="true"] { background: var(--blue); color: white; font-weight: 700; }
+    .workbench { display: grid; grid-template-columns: 360px minmax(0, 1fr); background: var(--white); border: 1px solid var(--line); border-top: 0; border-radius: 0 0 7px 7px; min-height: 570px; }
+    .left { padding: 22px; border-right: 1px solid var(--line); }
+    .right { padding: 22px 26px; min-width: 0; }
+    .hint { color: var(--muted); font-size: 13px; }
+    .sequence { display: flex; gap: 8px; margin: 18px 0 8px; }
+    .token { width: 66px; height: 74px; border: 1px solid var(--line); border-radius: 6px; background: white; color: var(--ink); font-size: 25px; font-weight: 700; position: relative; }
+    .token small { position: absolute; top: 3px; left: 6px; color: var(--muted); font: 11px var(--mono); }
+    .token.selected { border: 2px solid var(--blue); background: var(--blue-pale); }
+    .token.future { border-color: #e6c5c8; background: var(--red-pale); color: #8e676b; }
+    .token.selected.future { border-color: var(--blue); }
+    .legend { display: flex; gap: 15px; color: var(--muted); font-size: 12px; }
+    .legend span::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 2px; background: var(--blue); }
+    .legend span:last-child::before { background: var(--red); }
+    .divider { border: 0; border-top: 1px solid var(--line); margin: 22px 0; }
+    .readout { display: grid; gap: 9px; }
+    .readout-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+    .readout-row span { color: var(--muted); }
+    .readout-row strong { text-align: right; }
+    .vector { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+    .question { padding: 13px; background: var(--blue-pale); border-left: 3px solid var(--blue); margin-top: 20px; font-size: 14px; }
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0 0 22px; }
+    .steps button { flex: 1; border: 1px solid var(--line); background: var(--paper); border-radius: 5px; padding: 8px 7px; font-size: 13px; min-height: 40px; }
+    .steps button[aria-current="step"] { color: white; background: var(--blue); border-color: var(--blue); font-weight: 700; }
+    .stage-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+    .stage-number { color: var(--blue); font: 700 13px var(--mono); }
+    .stage-copy { color: var(--muted); margin: 6px 0 18px; min-height: 48px; }
+    .formula { padding: 10px 13px; background: #f7f9fa; border: 1px solid var(--line); border-radius: 5px; font: 13px/1.6 var(--mono); white-space: normal; overflow-wrap: anywhere; margin-bottom: 18px; }
+    .formula strong { color: var(--blue); }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+    th { color: var(--muted); font-weight: 600; text-align: left; background: #f7f9fa; }
+    th, td { padding: 10px 9px; border-bottom: 1px solid var(--line); }
+    th:first-child, td:first-child { width: 70px; }
+    tr.query-row { background: var(--blue-pale); }
+    tr.blocked { background: #fff9f9; color: #966e72; }
+    td code { font: 12px var(--mono); }
+    .bar-track { height: 7px; width: 86px; background: #e5ebf0; border-radius: 3px; overflow: hidden; }
+    .bar-fill { display: block; height: 100%; background: var(--green); }
+    .result { margin-top: 20px; padding: 15px 17px; border: 1px solid #a8d5c5; background: var(--green-pale); border-radius: 5px; }
+    .result-label { font-weight: 700; color: var(--green); }
+    .result strong { display: block; margin-top: 3px; font: 700 20px var(--mono); }
+    .result small { display: block; color: var(--muted); margin-top: 5px; }
+    .foot { margin-top: 22px; padding: 16px 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+    .foot a { color: var(--blue); }
+  </style>
+</head>
+<body>
+<main>
+  <div class="topline"><span>06 / Tiny Transformer</span><a href="./README.md">返回讲义</a></div>
+  <h1>Attention：当前位置怎样读到前文</h1>
+  <p class="lead">两道题：“我吃了”之后是“饭”，“天黑了”之后是“。”。从相同的“了”出发，逐步观察前文怎样进入计算。</p>
+  <div class="scope"><strong>数字从哪里来？</strong> 本页的二维向量和投影矩阵是写在页面代码里的教学参数，没有经过训练。匹配分数、softmax 权重和加权结果由这些参数实时算出。真实模型的参数会由训练学得。</div>
+
+  <div class="toolbar">
+    <span class="toolbar-label">选择输入</span>
+    <div class="switch" role="group" aria-label="选择输入文本">
+      <button type="button" data-sample="A" aria-pressed="true">我吃了饭</button>
+      <button type="button" data-sample="B" aria-pressed="false">天黑了。</button>
+    </div>
+    <span class="hint">位置 2 都是“了”，但训练样本中的下一个字符不同。</span>
+  </div>
+
+  <div class="workbench">
+    <section class="left" aria-label="输入和当前位置">
+      <h2>点击一个位置</h2>
+      <p class="hint">蓝色是当前正在预测下一个字符的位置；淡红色是它右边暂时看不到的未来。</p>
+      <div class="sequence" id="sequence"></div>
+      <div class="legend"><span>当前位置</span><span>未来位置</span></div>
+      <hr class="divider">
+      <div class="readout">
+        <div class="readout-row"><span>当前可见的前缀</span><strong id="prefix"></strong></div>
+        <div class="readout-row"><span>这道题的正确答案</span><strong id="target"></strong></div>
+        <div class="readout-row"><span>当前字符的 Token 向量</span><strong id="token-vector" class="vector"></strong></div>
+        <div class="readout-row"><span>当前位置的 Position 向量</span><strong id="position-vector" class="vector"></strong></div>
+        <div class="readout-row"><span>相加后的初始向量 x</span><strong id="input-vector" class="vector"></strong></div>
+      </div>
+      <div class="question" id="question"></div>
+    </section>
+
+    <section class="right" aria-label="Attention 计算过程">
+      <div class="steps" role="group" aria-label="计算步骤">
+        <button type="button" data-step="0" aria-current="step">1 · 为什么读前文</button>
+        <button type="button" data-step="1">2 · 点积</button>
+        <button type="button" data-step="2">3 · softmax</button>
+        <button type="button" data-step="3">4 · 加权汇总</button>
+        <button type="button" data-step="4">5 · Q / K / V</button>
+        <button type="button" data-step="5">6 · 遮住未来</button>
+      </div>
+      <div class="stage-head"><h2 id="stage-title"></h2><span class="stage-number" id="stage-number"></span></div>
+      <p class="stage-copy" id="stage-copy"></p>
+      <div class="formula" id="formula"></div>
+      <div class="formula" id="projection" hidden>
+        本页固定的教学矩阵（行向量 x 右乘矩阵）：<br>
+        Wq = [[1, 0], [0, 1]]<br>
+        Wk = [[1, 0], [0, 2]]<br>
+        Wv = [[1, 1], [0, 1]]<br>
+        因此 Q = [x₀, x₁]，K = [x₀, 2×x₁]，V = [x₀, x₀+x₁]。<br>
+        真实模型有三个可训练的线性变换；本页保持参数固定以便核对计算。
+      </div>
+      <table>
+        <thead><tr><th>位置</th><th>当前向量 x</th><th>匹配分数</th><th>关注比例</th><th id="value-heading">读取内容 V</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="result" id="result"></div>
+    </section>
+  </div>
+  <div class="foot">本页算出的是 Attention 汇总的信息向量。接着运行 <code>uv run python 06-tiny-transformer/prediction_learning_demo.py</code>，观察真实模型的候选字符概率、loss 和参数怎样改变。完整代码见 <a href="./model.py">CausalSelfAttention.forward()</a>。</div>
+</main>
+<script>
+  const samples = { A: "我吃了饭。", B: "天黑了。睡觉吧。" };
+  const tokenVectors = {
+    "我": [1.4, 0.1], "吃": [1.0, 0.3], "天": [-1.2, 0.1],
+    "黑": [-0.8, 0.3], "了": [0.4, 1.1], "饭": [0.0, 0.8], "。": [0.1, 0.7]
+  };
+  const positionVectors = [[0, 0], [0.1, 0], [0, 0.1], [0.1, 0.1]];
+  const state = { sample: "A", query: 2, step: 0 };
+  const $ = (id) => document.getElementById(id);
+  const fmt = (number) => Number(number).toFixed(3);
+  const vec = (numbers) => `[${numbers.map(fmt).join(", ")}]`;
+  const add = (a, b) => a.map((value, index) => value + b[index]);
+  const scale = (v, weight) => v.map((value) => value * weight);
+  const dot = (a, b) => a.reduce((total, value, index) => total + value * b[index], 0);
+
+  function calculate() {
+    const fullText = samples[state.sample];
+    const letters = [...fullText].slice(0, 4);
+    const x = letters.map((letter, index) => add(tokenVectors[letter], positionVectors[index]));
+    // 三个教学矩阵的计算展开；与页面上的矩阵完全对应。
+    const queries = x.map((v) => [v[0], v[1]]);
+    const keys = x.map((v) => [v[0], 2 * v[1]]);
+    const values = x.map((v) => [v[0], v[0] + v[1]]);
+    const query = queries[state.query];
+    const rawScores = keys.map((key) => dot(query, key));
+    const scores = rawScores.map((score) => score / Math.sqrt(2));
+    const visibleScores = scores.map((score, index) => index <= state.query ? score : -Infinity);
+    const maxScore = Math.max(...visibleScores);
+    const expScores = visibleScores.map((score) => Number.isFinite(score) ? Math.exp(score - maxScore) : 0);
+    const divisor = expScores.reduce((total, value) => total + value, 0);
+    const weights = expScores.map((value) => value / divisor);
+    const contributions = values.map((value, index) => scale(value, weights[index]));
+    const output = contributions.reduce(add, [0, 0]);
+    return { fullText, letters, x, query, keys, values, rawScores, scores, weights, contributions, output };
+  }
+
+  function render() {
+    const d = calculate();
+    document.querySelectorAll("[data-sample]").forEach((button) => {
+      button.setAttribute("aria-pressed", String(button.dataset.sample === state.sample));
+    });
+    document.querySelectorAll("[data-step]").forEach((button) => {
+      if (Number(button.dataset.step) === state.step) button.setAttribute("aria-current", "step");
+      else button.removeAttribute("aria-current");
+    });
+
+    $("sequence").replaceChildren(...d.letters.map((letter, index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `token${index === state.query ? " selected" : ""}${index > state.query ? " future" : ""}`;
+      button.setAttribute("aria-label", `位置 ${index}，字符 ${letter}`);
+      button.setAttribute("aria-pressed", String(index === state.query));
+      const position = document.createElement("small");
+      position.textContent = index;
+      button.append(position, document.createTextNode(letter));
+      button.addEventListener("click", () => { state.query = index; render(); });
+      return button;
+    }));
+
+    const letter = d.letters[state.query];
+    $("prefix").textContent = d.letters.slice(0, state.query + 1).join("");
+    $("target").textContent = d.fullText[state.query + 1];
+    $("token-vector").textContent = vec(tokenVectors[letter]);
+    $("position-vector").textContent = vec(positionVectors[state.query]);
+    $("input-vector").textContent = vec(d.x[state.query]);
+    $("question").textContent = `现在要根据“${d.letters.slice(0, state.query + 1).join("")}”预测下一个字符。右边的“${d.fullText[state.query + 1]}”是答案，计算 Attention 时不能直接看它。`;
+
+    const titles = ["相同的“了”，怎样给出不同答案？", "对应的数相乘，再加起来", "分数怎样变成读取比例？", "按比例混合读取的向量", "现在给三种向量命名", "未来位置为什么不能参与？"];
+    const copies = [
+      state.query === 2
+        ? "两道题最后都是位置 2 的“了”，所以初始向量相同。答案分别是“饭”和“。”，要区分它们，需要读取不同的前文。"
+        : `当前位置“${letter}”的初始向量只由字符和位置 ${state.query} 决定。切换文字，看看当前向量与前文怎样变化。`,
+      "当前位置的一组数与每个位置的另一组数做点积，得到匹配分数。下面展开对位置 0 的计算；表格显示再除以 √2 后的分数。",
+      "对当前可见位置的分数取指数，再除以指数总和，得到非负且总和为 1 的权重。这里分配的是读取位置的比例，尚不是候选字符的概率。",
+      "每个位置的读取向量乘对应权重，再逐维相加。结果仍是特征向量。表中的显示值保留三位小数，内部计算使用完整精度。",
+      "用于查询的向量叫 Q，用于匹配的叫 K，实际读取的叫 V。它们都由 x 经过线性变换得到。下方三个不同矩阵决定本页的具体数字。",
+      `位置 ${state.query} 只能读取位置 0 到 ${state.query}。未来位置的分数设成 −∞，softmax 后权重为 0。点击左侧其他位置，看看遮挡区域怎样移动。`
+    ];
+    const formulas = [
+      `初始向量 x = 字符向量 + 位置向量 = <strong>${vec(d.x[state.query])}</strong>`,
+      `${vec(d.query)} · ${vec(d.keys[0])} = ${fmt(d.query[0])}×${fmt(d.keys[0][0])} + ${fmt(d.query[1])}×${fmt(d.keys[0][1])} = ${fmt(d.rawScores[0])}；再除以 √2 = <strong>${fmt(d.scores[0])}</strong>`,
+      `位置 0 的权重 = exp(${fmt(d.scores[0])}) / (${d.scores.slice(0, state.query + 1).map(s => `exp(${fmt(s)})`).join(" + ")}) = <strong>${fmt(d.weights[0])}</strong>`,
+      `${d.contributions.slice(0, state.query + 1).map(vec).join(" + ")} = <strong>${vec(d.output)}</strong>`,
+      `当前 x = ${vec(d.x[state.query])} → Q = ${vec(d.query)}；K = ${vec(d.keys[state.query])}；V = ${vec(d.values[state.query])}`,
+      `可见位置的权重之和 = 1；未来位置：<strong>分数 −∞ → 权重 0</strong>`
+    ];
+    $("stage-title").textContent = titles[state.step];
+    $("stage-number").textContent = `0${state.step + 1} / 06`;
+    $("stage-copy").textContent = copies[state.step];
+    $("formula").innerHTML = formulas[state.step];
+    $("projection").hidden = state.step !== 4;
+    $("value-heading").textContent = state.step === 3 ? "贡献 = 权重 × V" : state.step >= 4 ? "读取内容 V" : "待读取的信息向量";
+
+    $("rows").replaceChildren(...d.letters.map((candidate, index) => {
+      const row = document.createElement("tr");
+      if (index === state.query) row.classList.add("query-row");
+      if (index > state.query) row.classList.add("blocked");
+      const score = state.step >= 1 ? fmt(d.scores[index]) : "待计算";
+      const weight = state.step >= 2 ? (index > state.query ? "0 · 遮住" : fmt(d.weights[index])) : "待计算";
+      const value = state.step === 3 ? (index > state.query ? "不读取" : vec(d.contributions[index])) : vec(d.values[index]);
+      const cells = [
+        `${index} · ${candidate}${index === state.query ? " ← 当前" : ""}`,
+        vec(d.x[index]),
+        state.step >= 2 && index > state.query ? "−∞ · 遮住" : score,
+        weight,
+        value
+      ];
+      cells.forEach((textValue, cellIndex) => {
+        const cell = document.createElement("td");
+        if (cellIndex === 3 && state.step >= 2 && index <= state.query) {
+          const label = document.createElement("span");
+          label.textContent = textValue;
+          const track = document.createElement("div");
+          track.className = "bar-track";
+          const fill = document.createElement("span");
+          fill.className = "bar-fill";
+          fill.style.width = `${d.weights[index] * 100}%`;
+          track.append(fill);
+          cell.append(label, track);
+        } else {
+          cell.textContent = textValue;
+        }
+        row.append(cell);
+      });
+      return row;
+    }));
+
+    if (state.step === 3) {
+      $("result").innerHTML = `<span class="result-label">加权汇总后的向量</span><strong>${vec(d.output)}</strong><small>本页还没有做 Transformer Block 的后续计算，也没有预测下一个字符的概率。</small>`;
+    } else {
+      $("result").innerHTML = `<span class="result-label">这一小步的检查</span><small>${["最后的“了”初始向量一样，为什么还需要读取前文？", "你能照着公式算出位置 0 的匹配分数吗？", "如果可见位置的匹配分数全相同，权重会怎样？", "", "Q/K 决定读取比例，V 提供被读取的内容。试着核对当前的三个向量。", "点到位置 0，其他三个位置的权重是不是都为 0？"][state.step]}</small>`;
+    }
+  }
+
+  document.querySelectorAll("[data-sample]").forEach((button) => button.addEventListener("click", () => {
+    state.sample = button.dataset.sample;
+    render();
+  }));
+  document.querySelectorAll("[data-step]").forEach((button) => button.addEventListener("click", () => {
+    state.step = Number(button.dataset.step);
+    render();
+  }));
+  render();
+</script>
+</body>
+</html>
